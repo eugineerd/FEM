@@ -1,0 +1,22 @@
+{
+    "name": "dealii",
+    "image": "dealii/dealii:latest",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cmake-tools",
+                "vadimcn.vscode-lldb",
+                "llvm-vs-code-extensions.vscode-clangd"
+            ]
+        }
+    },
+    "runArgs": [
+        "--security-opt",
+        "label=disable",
+        "--device",
+        "/dev/dri",
+        "--userns=keep-id"
+    ],
+    "remoteUser": "root"
+    //"updateRemoteUserUID": false
+}
