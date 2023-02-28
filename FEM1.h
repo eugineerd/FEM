@@ -23,9 +23,9 @@
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/fe_values.h>
 // Standard C++ libraries
+#include <cmath>
 #include <fstream>
 #include <iostream>
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -304,21 +304,36 @@ void FEM<dim>::setup_system(double g1_, double g2_, unsigned int quadRule_) {
   // Define quadrature rule
   /*A quad rule of 2 is included here as an example. You will need to decide
     what quadrature rule is needed for the given problems*/
-  quadRule = 5;
-  quad_points.resize(quadRule);
-  quad_weight.resize(quadRule);
 
-  quad_weight[0] = 128. / 225.;
-  quad_weight[1] = (322. + 13. * sqrt(70.)) / 900.;
-  quad_weight[2] = (322. + 13. * sqrt(70.)) / 900.;
-  quad_weight[3] = (322. - 13. * sqrt(70.)) / 900.;
-  quad_weight[4] = (322. - 13. * sqrt(70.)) / 900.;
-
-  quad_points[0] = 0.;
-  quad_points[1] = +1. / 3. * sqrt(5. - 2 * sqrt(10. / 7.));
-  quad_points[2] = -1. / 3. * sqrt(5. - 2 * sqrt(10. / 7.));
-  quad_points[3] = +1. / 3. * sqrt(5. + 2 * sqrt(10. / 7.));
-  quad_points[4] = -1. / 3. * sqrt(5. + 2 * sqrt(10. / 7.));
+  std::vector<double> points;
+  std::vector<double> weights;
+  // Values from
+  // https://www.ams.org/journals/bull/1942-48-10/S0002-9904-1942-07771-8/S0002-9904-1942-07771-8.pdf
+  if (basisFunctionOrder == 1) {
+    quadRule = 4;
+    points = {0.339981043584856, 0.86113631159405};
+    weights = {0.65214515486254, 0.347854845137454};
+  } else if (basisFunctionOrder == 2) {
+    quadRule = 7;
+    points = {0.000000000000000, 0.405845151377397, 0.741531185599394,
+              0.949107912342759};
+    weights = {0.417959183673469, 0.381830050505119, 0.279705391489277,
+               0.129484966168870};
+  } else if (basisFunctionOrder == 3) {
+    quadRule = 10;
+    points = {0.148874338981631, 0.43339539412924, 0.679409568299024,
+              0.865063366688985, 0.973906528517172};
+    weights = {0.295524224714753, 0.269266719309996, 0.219086362515982,
+               0.14945134915058, 0.066671344308688};
+  }
+  for (int i = (quadRule - 1) / 2; i >= 0; --i) {
+    quad_points.push_back(-points[i]);
+    quad_weight.push_back(weights[i]);
+  }
+  for (int i = quadRule % 2; i < (quadRule + 1) / 2; ++i) {
+    quad_points.push_back(points[i]);
+    quad_weight.push_back(weights[i]);
+  }
 
   // Just some notes...
   std::cout << "   Number of active elems:       "
@@ -340,7 +355,7 @@ template <int dim> void FEM<dim>::assemble_system() {
   FullMatrix<double> Klocal(dofs_per_elem, dofs_per_elem);
   Vector<double> Flocal(dofs_per_elem);
   std::vector<unsigned int> local_dof_indices(dofs_per_elem);
-  double h_e, x, f;
+  double h_e, x;
 
   // loop over elements
   typename DoFHandler<dim>::active_cell_iterator elem =
@@ -371,9 +386,9 @@ template <int dim> void FEM<dim>::assemble_system() {
           x += nodeLocation[local_dof_indices[B]] *
                basis_function(B, quad_points[q]);
         }
-        Flocal[A] +=
-            h_e / 2. * basis_function(A, quad_points[q]) * quad_weight[q] * x;
+        Flocal[A] += f * basis_function(A, quad_points[q]) * quad_weight[q] * x;
       }
+      Flocal[A] *= h_e / 2.;
     }
     // Add nonzero Neumann condition, if applicable
     if (prob == 2) {
@@ -387,7 +402,7 @@ template <int dim> void FEM<dim>::assemble_system() {
     for (unsigned int A = 0; A < dofs_per_elem; A++) {
       for (unsigned int B = 0; B < dofs_per_elem; B++) {
         for (unsigned int q = 0; q < quadRule; q++) {
-          Klocal[A][B] += 2. / h_e * basis_gradient(A, quad_points[q]) *
+          Klocal[A][B] += 2. * E / h_e * basis_gradient(A, quad_points[q]) *
                           basis_gradient(B, quad_points[q]) * quad_weight[q];
         }
       }
